@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RepoMarket — Repossessed Items</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:#0f1216; --panel:#171b21; --border:#262c34; --text:#e6e9ef;
+    --muted:#8a93a3; --accent:#3b82f6; --accent-hover:#2563eb;
+    --danger:#ef4444; --success:#10b981;
+  }
+  body { font-family: system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); min-height:100vh; line-height:1.5; }
+
+  #authView { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:1rem; }
+  .auth-card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:2rem; width:100%; max-width:400px; }
+  .auth-card h1 { font-size:1.5rem; margin-bottom:.25rem; }
+  .auth-card .sub { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+  .tabs { display:flex; gap:.5rem; margin-bottom:1.25rem; background:#0d1014; padding:.25rem; border-radius:8px; }
+  .tabs button { flex:1; background:transparent; border:none; color:var(--muted); padding:.5rem; border-radius:6px; cursor:pointer; font-size:.9rem; }
+  .tabs button.active { background:var(--accent); color:#fff; }
+  .field { margin-bottom:1rem; }
+  .field label { display:block; font-size:.85rem; color:var(--muted); margin-bottom:.35rem; }
+  .field input,.field textarea,.field select { width:100%; background:#0d1014; border:1px solid var(--border); color:var(--text); padding:.65rem .75rem; border-radius:8px; font-size:.95rem; font-family:inherit; }
+  .field input:focus,.field textarea:focus,.field select:focus { outline:none; border-color:var(--accent); }
+  .btn { background:var(--accent); color:#fff; border:none; padding:.7rem 1rem; border-radius:8px; font-size:.95rem; font-weight:500; cursor:pointer; width:100%; transition:background .15s; }
+  .btn:hover { background:var(--accent-hover); }
+  .btn:disabled { opacity:.6; cursor:not-allowed; }
+  .btn.secondary { background:transparent; border:1px solid var(--border); color:var(--text); width:auto; }
+  .btn.secondary:hover { background:#1f242c; }
+  .btn.small { padding:.45rem .8rem; font-size:.85rem; width:auto; }
+  .error { color:var(--danger); font-size:.85rem; margin-top:.75rem; min-height:1.2em; }
+
+  #appView { display:none; min-height:100vh; flex-direction:column; }
+  header { background:var(--panel); border-bottom:1px solid var(--border); padding:.85rem 1.25rem; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
+  header h1 { font-size:1.1rem; }
+  header .user { display:flex; align-items:center; gap:.75rem; font-size:.9rem; color:var(--muted); }
+  main { flex:1; padding:1.25rem; max-width:1100px; margin:0 auto; width:100%; }
+  .toolbar { display:flex; gap:.75rem; margin-bottom:1.25rem; flex-wrap:wrap; align-items:center; }
+  .toolbar input { flex:1; min-width:200px; background:var(--panel); border:1px solid var(--border); color:var(--text); padding:.6rem .8rem; border-radius:8px; }
+  .toolbar input:focus { outline:none; border-color:var(--accent); }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:1rem; }
+  .item { background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; transition:border-color .15s; }
+  .item:hover { border-color:#374151; }
+  .item .thumb { height:140px; background:#0d1014; display:flex; align-items:center; justify-content:center; font-size:2.5rem; color:#374151; }
+  .item .body { padding:1rem; flex:1; display:flex; flex-direction:column; gap:.4rem; }
+  .item h3 { font-size:1rem; }
+  .item .price { color:var(--success); font-weight:600; font-size:1.15rem; }
+  .item .desc { color:var(--muted); font-size:.85rem; flex:1; }
+  .item .meta { color:var(--muted); font-size:.75rem; border-top:1px solid var(--border); padding-top:.6rem; margin-top:.4rem; display:flex; justify-content:space-between; }
+  .empty { text-align:center; color:var(--muted); padding:3rem 1rem; border:1px dashed var(--border); border-radius:10px; }
+  .loading { text-align:center; color:var(--muted); padding:2rem; }
+  .item .owner-controls { display:flex; gap:.5rem; padding:0 1rem 1rem; }
+  .item .owner-controls button { flex:1; font-size:.8rem; padding:.4rem; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; }
+  .item .owner-controls button:hover { color:var(--text); border-color:#374151; }
+  .item .owner-controls button.del:hover { color:var(--danger); border-color:var(--danger); }
+
+  .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:1rem; z-index:100; }
+  .modal-bg.open { display:flex; }
+  .modal { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:1.5rem; width:100%; max-width:480px; max-height:90vh; overflow-y:auto; }
+  .modal h2 { font-size:1.2rem; margin-bottom:1rem; }
+  .modal-actions { display:flex; gap:.75rem; justify-content:flex-end; margin-top:1.25rem; }
+  .modal-actions .btn { width:auto; }
+
+  .toast { position:fixed; bottom:1.5rem; right:1.5rem; background:var(--panel); border:1px solid var(--border); padding:.75rem 1rem; border-radius:8px; font-size:.9rem; opacity:0; transform:translateY(10px); transition:all .2s; pointer-events:none; z-index:200; max-width:80vw; }
+  .toast.show { opacity:1; transform:translateY(0); }
+</style>
+</head>
+<body>
+
+<section id="authView">
+  <div class="auth-card">
+    <h1>RepoMarket</h1>
+    <p class="sub">Buy and sell repossessed items</p>
+    <div class="tabs">
+      <button id="tabLogin" class="active" onclick="switchTab('login')">Log in</button>
+      <button id="tabRegister" onclick="switchTab('register')">Sign up</button>
+    </div>
+
+    <form id="loginForm" onsubmit="return handleLogin(event)">
+      <div class="field"><label>Email</label><input type="email" id="loginEmail" required autocomplete="email" /></div>
+      <div class="field"><label>Password</label><input type="password" id="loginPassword" required autocomplete="current-password" /></div>
+      <button type="submit" class="btn" id="loginBtn">Log in</button>
+      <p class="error" id="loginError"></p>
+    </form>
+
+    <form id="registerForm" onsubmit="return handleRegister(event)" style="display:none">
+      <div class="field"><label>Full name</label><input type="text" id="regName" required autocomplete="name" /></div>
+      <div class="field"><label>Email</label><input type="email" id="regEmail" required autocomplete="email" /></div>
+      <div class="field"><label>Password (min 6 characters)</label><input type="password" id="regPassword" required minlength="6" autocomplete="new-password" /></div>
+      <button type="submit" class="btn" id="regBtn">Create account</button>
+      <p class="error" id="registerError"></p>
+    </form>
+  </div>
+</section>
+
+<section id="appView">
+  <header>
+    <h1>RepoMarket</h1>
+    <div class="user">
+      <span id="userLabel"></span>
+      <button class="btn secondary small" onclick="handleLogout()">Log out</button>
+    </div>
+  </header>
+  <main>
+    <div class="toolbar">
+      <input type="text" id="searchInput" placeholder="Search items..." />
+      <button class="btn small" onclick="openPostModal()">+ Post item</button>
+    </div>
+    <div id="itemsContainer" class="grid"></div>
+  </main>
+</section>
+
+<div class="modal-bg" id="postModal">
+  <div class="modal">
+    <h2 id="postModalTitle">Post an item</h2>
+    <form id="postForm" onsubmit="return handlePost(event)">
+      <input type="hidden" id="editId" />
+      <div class="field"><label>Item name</label><input type="text" id="postName" required maxlength="80" /></div>
+      <div class="field"><label>Price (USD)</label><input type="number" id="postPrice" required min="0" step="0.01" /></div>
+      <div class="field">
+        <label>Category</label>
+        <select id="postCategory">
+          <option>Vehicle</option><option>Electronics</option><option>Furniture</option>
+          <option>Appliances</option><option>Real Estate</option><option>Other</option>
+        </select>
+      </div>
+      <div class="field"><label>Description</label><textarea id="postDesc" rows="3" maxlength="500" placeholder="Condition, location, notes..."></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" onclick="closePostModal()">Cancel</button>
+        <button type="submit" class="btn" id="postSubmitBtn">Post</button>
+      </div>
+      <p class="error" id="postError"></p>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const TOKEN_KEY = 'repomarket_token';
+const state = {
+  user: null,
+  token: localStorage.getItem(TOKEN_KEY),
+  items: [],
+  search: '',
+};
+
+async function api(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (state.token) headers.Authorization = 'Bearer ' + state.token;
+  const res = await fetch(path, { ...options, headers });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || ('Request failed (' + res.status + ')'));
+  return body;
+}
+
+function toast(msg, ok = true) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.color = ok ? 'var(--success)' : 'var(--danger)';
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function switchTab(which) {
+  const isLogin = which === 'login';
+  document.getElementById('tabLogin').classList.toggle('active', isLogin);
+  document.getElementById('tabRegister').classList.toggle('active', !isLogin);
+  document.getElementById('loginForm').style.display = isLogin ? '' : 'none';
+  document.getElementById('registerForm').style.display = isLogin ? 'none' : '';
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('registerError').textContent = '';
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+  const err = document.getElementById('registerError');
+  err.textContent = '';
+  const btn = document.getElementById('regBtn');
+  btn.disabled = true;
+  try {
+    const data = await api('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: document.getElementById('regName').value.trim(),
+        email: document.getElementById('regEmail').value.trim(),
+        password: document.getElementById('regPassword').value,
+      }),
+    });
+    setSession(data);
+    toast('Account created. Welcome, ' + data.user.name + '!');
+  } catch (e) {
+    err.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+  return false;
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const err = document.getElementById('loginError');
+  err.textContent = '';
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  try {
+    const data = await api('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: document.getElementById('loginEmail').value.trim(),
+        password: document.getElementById('loginPassword').value,
+      }),
+    });
+    setSession(data);
+    toast('Welcome back, ' + data.user.name + '!');
+  } catch (e) {
+    err.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+  return false;
+}
+
+function setSession(data) {
+  state.token = data.token;
+  state.user = data.user;
+  localStorage.setItem(TOKEN_KEY, data.token);
+  showApp();
+}
+
+function handleLogout() {
+  state.token = null;
+  state.user = null;
+  state.items = [];
+  localStorage.removeItem(TOKEN_KEY);
+  document.getElementById('appView').style.display = 'none';
+  document.getElementById('authView').style.display = 'flex';
+  document.getElementById('loginForm').reset();
+  document.getElementById('registerForm').reset();
+  switchTab('login');
+}
+
+async function showApp() {
+  document.getElementById('authView').style.display = 'none';
+  document.getElementById('appView').style.display = 'flex';
+  document.getElementById('userLabel').textContent = state.user ? state.user.name : '';
+  await loadItems();
+}
+
+async function loadItems() {
+  const container = document.getElementById('itemsContainer');
+  container.innerHTML = '<div class="loading" style="grid-column:1/-1">Loading...</div>';
+  try {
+    const q = state.search.trim();
+    const items = await api('/api/items' + (q ? '?q=' + encodeURIComponent(q) : ''));
+    state.items = items;
+    renderItems();
+  } catch (e) {
+    container.innerHTML = '<div class="empty" style="grid-column:1/-1">Could not load items: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function renderItems() {
+  const container = document.getElementById('itemsContainer');
+  const items = state.items;
+  if (!items.length) {
+    container.innerHTML = '<div class="empty" style="grid-column:1/-1">' + (state.search ? 'No items match your search.' : 'No items yet. Be the first to post one!') + '</div>';
+    return;
+  }
+  container.innerHTML = items.map(item => {
+    const mine = state.user && item.ownerId === state.user.id;
+    const desc = item.description ? '<p class="desc">' + escapeHtml(item.description) + '</p>' : '<p class="desc"></p>';
+    const controls = mine ? '<div class="owner-controls">' +
+      '<button onclick="editItem(\'' + item.id + '\')">Edit</button>' +
+      '<button class="del" onclick="deleteItem(\'' + item.id + '\')">Delete</button></div>' : '';
+    return '<article class="item">' +
+      '<div class="thumb">📦</div>' +
+      '<div class="body">' +
+        '<h3>' + escapeHtml(item.name) + '</h3>' +
+        '<div class="price">$' + Number(item.price).toFixed(2) + '</div>' +
+        desc +
+        '<div class="meta">' +
+          '<span>' + escapeHtml(item.category) + '</span>' +
+          '<span>' + new Date(item.createdAt).toLocaleDateString() + '</span>' +
+        '</div>' +
+      '</div>' + controls +
+    '</article>';
+  }).join('');
+}
+
+let searchTimer;
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  state.search = e.target.value;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(loadItems, 250);
+});
+
+function openPostModal(item) {
+  document.getElementById('postError').textContent = '';
+  document.getElementById('postForm').reset();
+  document.getElementById('editId').value = '';
+  if (item) {
+    document.getElementById('postModalTitle').textContent = 'Edit item';
+    document.getElementById('postSubmitBtn').textContent = 'Save changes';
+    document.getElementById('editId').value = item.id;
+    document.getElementById('postName').value = item.name;
+    document.getElementById('postPrice').value = item.price;
+    document.getElementById('postCategory').value = item.category;
+    document.getElementById('postDesc').value = item.description || '';
+  } else {
+    document.getElementById('postModalTitle').textContent = 'Post an item';
+    document.getElementById('postSubmitBtn').textContent = 'Post';
+  }
+  document.getElementById('postModal').classList.add('open');
+}
+function closePostModal() { document.getElementById('postModal').classList.remove('open'); }
+
+async function handlePost(e) {
+  e.preventDefault();
+  const err = document.getElementById('postError');
+  err.textContent = '';
+  const btn = document.getElementById('postSubmitBtn');
+  btn.disabled = true;
+
+  const id = document.getElementById('editId').value;
+  const payload = {
+    name: document.getElementById('postName').value.trim(),
+    price: parseFloat(document.getElementById('postPrice').value),
+    category: document.getElementById('postCategory').value,
+    description: document.getElementById('postDesc').value.trim(),
+  };
+
+  try {
+    if (id) {
+      const updated = await api('/api/items/' + id, { method: 'PUT', body: JSON.stringify(payload) });
+      const i = state.items.findIndex(x => x.id === id);
+      if (i !== -1) state.items[i] = updated;
+      toast('Item updated.');
+    } else {
+      const created = await api('/api/items', { method: 'POST', body: JSON.stringify(payload) });
+      state.items.unshift(created);
+      toast('Item posted.');
+    }
+    closePostModal();
+    renderItems();
+  } catch (e) {
+    err.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+  return false;
+}
+
+function editItem(id) {
+  const item = state.items.find(i => i.id === id);
+  if (item) openPostModal(item);
+}
+
+async function deleteItem(id) {
+  if (!confirm('Delete this item?')) return;
+  try {
+    await api('/api/items/' + id, { method: 'DELETE' });
+    state.items = state.items.filter(i => i.id !== id);
+    renderItems();
+    toast('Item deleted.');
+  } catch (e) {
+    toast(e.message, false);
+  }
+}
+
+(async function init() {
+  if (state.token) {
+    try {
+      const data = await api('/api/auth/me');
+      state.user = data.user;
+      showApp();
+    } catch {
+      handleLogout();
+    }
+  } else {
+    document.getElementById('authView').style.display = 'flex';
+  }
+
+  document.getElementById('postModal').addEventListener('click', e => {
+    if (e.target.id === 'postModal') closePostModal();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePostModal(); });
+})();
+</script>
+</body>
+</html>
